@@ -1,8 +1,8 @@
-#!/bin/sh
+#!/usr/bin/env bash
 
 ##############################
 app_dir="$HOME/.vim"
-VUNDLE_URI="https://github.com/gmarik/vundle.git"
+yjiang_dir="$app_dir/habit"
 ###############################
 
 do_backup() {
@@ -11,28 +11,8 @@ do_backup() {
         for i in "$2" "$3" "$4"; do
             [ -e "$i" ] && [ ! -L "$i" ] && mv "$i" "$i.$today";
         done
-   fi
-   echo $1
-}
-
-upgrade_repo() {
-      if [ "$1" = "$app_name" ]; then
-          cd "$app_dir" &&
-          git pull origin "$git_branch"
-      fi
-
-      if [ "$1" = "vundle" ]; then
-          cd "$HOME/.vim/bundle/vundle" &&
-          git pull origin master
-      fi
-}
-
-clone_vundle() {
-    if [ ! -e "$HOME/.vim/bundle/vundle" ]; then
-        git clone $VUNDLE_URI "$HOME/.vim/bundle/vundle"
-    else
-        upgrade_repo "vundle"   "Successfully updated vundle"
     fi
+    echo $1
 }
 
 lnif() {
@@ -42,25 +22,27 @@ lnif() {
 }
 
 create_symlinks() {
-    endpath="$app_dir"
-
-    if [ ! -d "$endpath/.vim/bundle" ]; then
-        mkdir -p "$endpath/.vim/bundle"
-    fi
-
-    lnif "$endpath/vimrc"              "$HOME/.vimrc"
-    lnif "$endpath/bashrc"             "$HOME/.bashrc"
-    lnif "$endpath/editrc"             "$HOME/.editrc"
-    lnif "$endpath/tmux.conf"          "$HOME/.tmux.conf"
-    lnif "$endpath/tmuxp.yaml"         "$HOME/.tmuxp.yaml"
-    lnif "$endpath/gitconfig"         "$HOME/.gitconfig"
+    lnif "$app_dir/vimrc"              "$HOME/.vimrc"
 }
 
-setup_vundle() {
-    system_shell="$SHELL"
-    export SHELL='/bin/sh'
-    vim -u "$HOME/.vimrc" +BundleInstall! +BundleClean +qall
-    export SHELL="$system_shell"
+yjiang_symlinks() {
+    lnif "$yjiang_dir/bash_local"         "$HOME/.bash_local"
+    lnif "$yjiang_dir/bashrc"             "$HOME/.bashrc"
+    lnif "$yjiang_dir/editrc"             "$HOME/.editrc"
+    lnif "$yjiang_dir/tmux.conf"          "$HOME/.tmux.conf"
+    lnif "$yjiang_dir/tmuxp.yaml"         "$HOME/.tmuxp.yaml"
+    lnif "$yjiang_dir/gitconfig"          "$HOME/.gitconfig"
+    lnif "$yjiang_dir/dircolors"          "$HOME/.dircolors"
+}
+
+setup_vim_plug() {
+    if [ ! -e "$HOME/.vim/autoload" ]; then
+        curl -fLo ~/.vim/autoload/plug.vim --create-dirs https://raw.githubusercontent.com/junegunn/vim-plug/master/plug.vim
+        install_arguments="+PlugInstall +PlugClean +qall"
+    else
+        install_arguments="+PlugUpgrade +PlugInstall +PlugClean +qall"
+    fi
+    vim -u "$HOME/.vimrc" $install_arguments
 }
 
 create_vim_tmp_dir(){
@@ -71,15 +53,19 @@ create_vim_tmp_dir(){
     fi
 }
 
+version_ge(){
+    test "$(echo "$@" | tr " " "\n" | sort -r | head -n 1)" == "$1";
+}
 
 vim_version=$(vim --version | grep Vi | awk '{print $5}')
-r=$(echo "$vim_version >= 7.3" | bc)
-if [ $r != 1 ];then
-    echo "Vim version must be 7.3+."
-else
+
+if version_ge $vim_version 7.3;then
     #do_backup   "原有vim配置已备份至 .vim.`date +%Y%m%d%S`" "$HOME/.vim" "$HOME/.vimrc"
-    clone_vundle        #安装vundle
     create_symlinks     #创建配置软链接
-    setup_vundle        #克隆预置插件
+    setup_vim_plug      #安装vim-plug,并克隆预置插件
     create_vim_tmp_dir  #创建vim缓存目录
+    #yjiang_symlinks     #自用习惯
+    echo "Done."
+else
+    echo "Vim version must be 7.3+."
 fi
